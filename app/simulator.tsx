@@ -584,59 +584,51 @@ export default function SimulatorScreen() {
     };
 
     setPackets(prev => [...prev, newPacket]);
-    updateNetworkStats(newPacket);
+    updateNetworkStats(nodes, connections, nodes.find(n => n.id === source)!, connections.find(c => c.from === source && c.to === destination)!);
   };
 
-  const updateNetworkStats = (packet: Packet) => {
-    setNetworkStats(prev => {
-      const newStats = { ...prev };
-      newStats.totalPackets++;
-      newStats.packetTypes[packet.type]++;
-
-      // Update node stats
-      if (!newStats.nodeStats[packet.source]) {
-        newStats.nodeStats[packet.source] = {
-          packetsSent: 0,
-          packetsReceived: 0,
-          bandwidthUsage: 0,
-          averageLatency: 0
-        };
+  const updateNetworkStats = (
+    nodes: NetworkNode[],
+    connections: Connection[],
+    node: NetworkNode,
+    conn: Connection
+  ): void => {
+    setNetworkStats(prev => ({
+      ...prev,
+      totalPackets: prev.totalPackets + 1,
+      successfulPackets: node.status === 'active' ? prev.successfulPackets + 1 : prev.successfulPackets,
+      droppedPackets: node.status === 'inactive' ? prev.droppedPackets + 1 : prev.droppedPackets,
+      averageLatency: calculateAverageLatency(nodes, connections, node),
+      bandwidthUsage: calculateBandwidthUsage(nodes, connections, conn),
+      packetTypes: {
+        ...prev.packetTypes,
+        [conn.type]: (prev.packetTypes[conn.type] || 0) + 1
       }
-      if (!newStats.nodeStats[packet.destination]) {
-        newStats.nodeStats[packet.destination] = {
-          packetsSent: 0,
-          packetsReceived: 0,
-          bandwidthUsage: 0,
-          averageLatency: 0
-        };
-      }
+    }));
+  };
 
-      newStats.nodeStats[packet.source].packetsSent++;
-      newStats.nodeStats[packet.destination].packetsReceived++;
+  const calculateAverageLatency = (
+    nodes: NetworkNode[],
+    connections: Connection[],
+    node: NetworkNode
+  ): number => {
+    const nodeConnections = connections.filter(conn => 
+      conn.from === node.id || conn.to === node.id
+    );
+    if (nodeConnections.length === 0) return 0;
+    const totalLatency = nodeConnections.reduce((sum, conn) => sum + conn.latency, 0);
+    return totalLatency / nodeConnections.length;
+  };
 
-      // Calculate latency and bandwidth
-      const connection = connections.find(c => 
-        (c.from === packet.source && c.to === packet.destination) ||
-        (c.from === packet.destination && c.to === packet.source)
-      );
-
-      if (connection) {
-        const latency = connection.latency;
-        newStats.nodeStats[packet.source].averageLatency = 
-          (newStats.nodeStats[packet.source].averageLatency * (newStats.nodeStats[packet.source].packetsSent - 1) + latency) / 
-          newStats.nodeStats[packet.source].packetsSent;
-        
-        newStats.nodeStats[packet.source].bandwidthUsage += connection.bandwidth;
-      }
-
-      // Update overall stats
-      newStats.averageLatency = Object.values(newStats.nodeStats).reduce((acc, node) => acc + node.averageLatency, 0) / 
-        Object.keys(newStats.nodeStats).length;
-      
-      newStats.bandwidthUsage = Object.values(newStats.nodeStats).reduce((acc, node) => acc + node.bandwidthUsage, 0);
-
-      return newStats;
-    });
+  const calculateBandwidthUsage = (
+    nodes: NetworkNode[],
+    connections: Connection[],
+    conn: Connection
+  ): number => {
+    const activeConnections = connections.filter(c => c.status === 'active');
+    if (activeConnections.length === 0) return 0;
+    const totalBandwidth = activeConnections.reduce((sum, c) => sum + c.bandwidth, 0);
+    return (conn.bandwidth / totalBandwidth) * 100;
   };
 
   useEffect(() => {
