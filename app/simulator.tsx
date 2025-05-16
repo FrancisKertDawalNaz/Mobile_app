@@ -58,6 +58,7 @@ interface Connection {
   latency: number;
   packetLoss: number;
   status: 'active' | 'inactive';
+  type: 'TCP' | 'UDP' | 'ICMP';
 }
 
 interface SimulationScenario {
@@ -388,25 +389,25 @@ const simulationScenarios = {
   normal: {
     name: 'Normal Operation',
     description: 'All nodes and connections operating normally',
-    setup: (nodes, connections) => ({
-      nodes: nodes.map(node => ({ ...node, status: 'active' })),
-      connections: connections.map(conn => ({ ...conn, status: 'active' })),
+    setup: (nodes: NetworkNode[], connections: Connection[]) => ({
+      nodes: nodes.map((node: NetworkNode) => ({ ...node, status: 'active' as const })),
+      connections: connections.map((conn: Connection) => ({ ...conn, status: 'active' as const })),
       packetFilters: {}
     })
   },
   congestion: {
     name: 'Network Congestion',
     description: 'Simulates high traffic causing delays and packet loss',
-    setup: (nodes, connections) => ({
-      nodes: nodes.map(node => ({
+    setup: (nodes: NetworkNode[], connections: Connection[]) => ({
+      nodes: nodes.map((node: NetworkNode) => ({
         ...node,
-        status: 'active',
-        latency: node.latency * 3,
-        packetLoss: node.packetLoss * 2
+        status: 'active' as const,
+        latency: (node.latency || 0) * 3,
+        packetLoss: (node.packetLoss || 0) * 2
       })),
-      connections: connections.map(conn => ({
+      connections: connections.map((conn: Connection) => ({
         ...conn,
-        status: 'active',
+        status: 'active' as const,
         latency: conn.latency * 3,
         packetLoss: conn.packetLoss * 2,
         bandwidth: conn.bandwidth * 0.5
@@ -417,20 +418,18 @@ const simulationScenarios = {
   failure: {
     name: 'Node Failure',
     description: 'Simulates critical node failures',
-    setup: (nodes, connections) => {
-      // Find routers and switches
-      const criticalNodes = nodes.filter(n => n.type === 'router' || n.type === 'switch');
-      // Randomly select 2 critical nodes to fail
+    setup: (nodes: NetworkNode[], connections: Connection[]) => {
+      const criticalNodes = nodes.filter((n: NetworkNode) => n.type === 'router' || n.type === 'switch');
       const failedNodes = criticalNodes.sort(() => Math.random() - 0.5).slice(0, 2);
       
       return {
-        nodes: nodes.map(node => ({
+        nodes: nodes.map((node: NetworkNode) => ({
           ...node,
-          status: failedNodes.some(n => n.id === node.id) ? 'inactive' : 'active'
+          status: failedNodes.some((n: NetworkNode) => n.id === node.id) ? 'inactive' as const : 'active' as const
         })),
-        connections: connections.map(conn => ({
+        connections: connections.map((conn: Connection) => ({
           ...conn,
-          status: failedNodes.some(n => n.id === conn.from || n.id === conn.to) ? 'inactive' : 'active'
+          status: failedNodes.some((n: NetworkNode) => n.id === conn.from || n.id === conn.to) ? 'inactive' as const : 'active' as const
         })),
         packetFilters: {}
       };
@@ -439,23 +438,23 @@ const simulationScenarios = {
   security: {
     name: 'Security Measures',
     description: 'Implements strict packet filtering and bandwidth limits',
-    setup: (nodes, connections) => ({
-      nodes: nodes.map(node => ({
+    setup: (nodes: NetworkNode[], connections: Connection[]) => ({
+      nodes: nodes.map((node: NetworkNode) => ({
         ...node,
-        status: 'active',
-        bandwidth: node.bandwidth * 0.7
+        status: 'active' as const,
+        bandwidth: (node.bandwidth || 0) * 0.7
       })),
-      connections: connections.map(conn => ({
+      connections: connections.map((conn: Connection) => ({
         ...conn,
-        status: 'active',
+        status: 'active' as const,
         bandwidth: conn.bandwidth * 0.7
       })),
-      packetFilters: nodes.reduce((filters, node) => ({
+      packetFilters: nodes.reduce<{ [key: string]: { allowedTypes: ('TCP' | 'UDP' | 'ICMP')[]; maxBandwidth: number; priority: number; } }>((filters, node) => ({
         ...filters,
         [node.id]: {
-          allowedTypes: node.type === 'router' ? ['TCP', 'UDP', 'ICMP'] :
-                       node.type === 'switch' ? ['TCP', 'UDP'] : ['TCP'],
-          maxBandwidth: node.bandwidth * 0.7,
+          allowedTypes: node.type === 'router' ? ['TCP', 'UDP', 'ICMP'] as const :
+                       node.type === 'switch' ? ['TCP', 'UDP'] as const : ['TCP'] as const,
+          maxBandwidth: (node.bandwidth || 0) * 0.7,
           priority: node.type === 'router' ? 3 : node.type === 'switch' ? 2 : 1
         }
       }), {})
@@ -521,7 +520,8 @@ export default function SimulatorScreen() {
           bandwidth: 100,
           latency: 1,
           packetLoss: 0.05,
-          status: 'active'
+          status: 'active',
+          type: 'TCP'
         };
         setConnections(prev => [...prev, newConnection]);
         
@@ -1156,53 +1156,55 @@ export default function SimulatorScreen() {
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Packet Filters</Text>
-          {nodes.map(node => (
-            <View key={node.id} style={styles.filterItem}>
-              <Text style={styles.filterLabel}>{node.label}</Text>
-              <View style={styles.filterOptions}>
-                <Text style={styles.filterSubLabel}>Allowed Packet Types:</Text>
-                {(['TCP', 'UDP', 'ICMP'] as const).map(type => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      styles.filterTypeButton,
-                      packetFilters[node.id]?.allowedTypes?.includes(type) && styles.selectedFilterType
-                    ]}
-                    onPress={() => {
-                      const currentTypes = packetFilters[node.id]?.allowedTypes || [];
-                      const newTypes = currentTypes.includes(type)
-                        ? currentTypes.filter(t => t !== type)
-                        : [...currentTypes, type];
-                      updatePacketFilter(node.id, { allowedTypes: newTypes });
-                    }}
-                  >
-                    <Text style={[
-                      styles.filterTypeText,
-                      packetFilters[node.id]?.allowedTypes?.includes(type) && styles.selectedFilterTypeText
-                    ]}>{type}</Text>
-                  </TouchableOpacity>
-                ))}
+          <ScrollView style={{ maxHeight: 400 }}>
+            {nodes.map(node => (
+              <View key={node.id} style={styles.filterItem}>
+                <Text style={styles.filterLabel}>{node.label}</Text>
+                <View style={styles.filterOptions}>
+                  <Text style={styles.filterSubLabel}>Allowed Packet Types:</Text>
+                  {(['TCP', 'UDP', 'ICMP'] as const).map(type => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.filterTypeButton,
+                        packetFilters[node.id]?.allowedTypes?.includes(type) && styles.selectedFilterType
+                      ]}
+                      onPress={() => {
+                        const currentTypes = packetFilters[node.id]?.allowedTypes || [];
+                        const newTypes = currentTypes.includes(type)
+                          ? currentTypes.filter(t => t !== type)
+                          : [...currentTypes, type];
+                        updatePacketFilter(node.id, { allowedTypes: newTypes });
+                      }}
+                    >
+                      <Text style={[
+                        styles.filterTypeText,
+                        packetFilters[node.id]?.allowedTypes?.includes(type) && styles.selectedFilterTypeText
+                      ]}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.filterOptions}>
+                  <Text style={styles.filterSubLabel}>Max Bandwidth (Mbps):</Text>
+                  <TextInput
+                    style={styles.filterInput}
+                    value={packetFilters[node.id]?.maxBandwidth?.toString()}
+                    onChangeText={(value) => updatePacketFilter(node.id, { maxBandwidth: Number(value) })}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.filterOptions}>
+                  <Text style={styles.filterSubLabel}>Priority:</Text>
+                  <TextInput
+                    style={styles.filterInput}
+                    value={packetFilters[node.id]?.priority?.toString()}
+                    onChangeText={(value) => updatePacketFilter(node.id, { priority: Number(value) })}
+                    keyboardType="numeric"
+                  />
+                </View>
               </View>
-              <View style={styles.filterOptions}>
-                <Text style={styles.filterSubLabel}>Max Bandwidth (Mbps):</Text>
-                <TextInput
-                  style={styles.filterInput}
-                  value={packetFilters[node.id]?.maxBandwidth?.toString()}
-                  onChangeText={(value) => updatePacketFilter(node.id, { maxBandwidth: Number(value) })}
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={styles.filterOptions}>
-                <Text style={styles.filterSubLabel}>Priority:</Text>
-                <TextInput
-                  style={styles.filterInput}
-                  value={packetFilters[node.id]?.priority?.toString()}
-                  onChangeText={(value) => updatePacketFilter(node.id, { priority: Number(value) })}
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-          ))}
+            ))}
+          </ScrollView>
           <TouchableOpacity
             style={styles.closeButton}
             onPress={() => setShowPacketFilters(false)}
@@ -1387,7 +1389,7 @@ export default function SimulatorScreen() {
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Save Configuration</Text>
           
-          <View style={styles.configInput}>
+          <View style={styles.configInputContainer}>
             <Text style={styles.configLabel}>Name</Text>
             <TextInput
               style={styles.textInput}
@@ -1397,7 +1399,7 @@ export default function SimulatorScreen() {
             />
           </View>
 
-          <View style={styles.configInput}>
+          <View style={styles.configInputContainer}>
             <Text style={styles.configLabel}>Description</Text>
             <TextInput
               style={[styles.textInput, styles.textArea]}
@@ -2028,7 +2030,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  configInput: {
+  configInputContainer: {
     marginBottom: 15,
   },
   textInput: {
@@ -2063,5 +2065,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  filterSubLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
   },
 }); 
