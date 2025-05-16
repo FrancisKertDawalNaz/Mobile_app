@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Alert, Modal } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -17,6 +17,16 @@ interface Quiz {
   description: string;
   questions: QuizQuestion[];
   timeLimit?: number; // in seconds
+}
+
+interface QuizHistory {
+  id: string;
+  quizId: string;
+  quizTitle: string;
+  score: number;
+  totalQuestions: number;
+  date: string;
+  timeTaken: number;
 }
 
 const quizzes: { [key: string]: Quiz } = {
@@ -45,6 +55,55 @@ const quizzes: { [key: string]: Quiz } = {
         options: ['192.168.1.0', '192.168.0.0', '192.168.1.1', '192.168.1.255'],
         correctAnswer: '192.168.1.0',
         explanation: 'The network address is the first address in the subnet'
+      },
+      {
+        id: 4,
+        question: 'What is the broadcast address for 192.168.1.100/24?',
+        options: ['192.168.1.0', '192.168.1.255', '192.168.1.1', '192.168.1.254'],
+        correctAnswer: '192.168.1.255',
+        explanation: 'The broadcast address is the last address in the subnet'
+      },
+      {
+        id: 5,
+        question: 'How many subnets can be created with a /26 mask?',
+        options: ['2', '4', '8', '16'],
+        correctAnswer: '4',
+        explanation: 'A /26 mask uses 2 bits for subnetting, creating 4 subnets'
+      },
+      {
+        id: 6,
+        question: 'What is the subnet mask for /16?',
+        options: ['255.0.0.0', '255.255.0.0', '255.255.255.0', '255.255.255.255'],
+        correctAnswer: '255.255.0.0',
+        explanation: 'A /16 subnet mask has 16 bits set to 1, which is 255.255.0.0'
+      },
+      {
+        id: 7,
+        question: 'What is the subnet mask for /8?',
+        options: ['255.0.0.0', '255.255.0.0', '255.255.255.0', '255.255.255.255'],
+        correctAnswer: '255.0.0.0',
+        explanation: 'A /8 subnet mask has 8 bits set to 1, which is 255.0.0.0'
+      },
+      {
+        id: 8,
+        question: 'How many usable IP addresses are in a /30 network?',
+        options: ['2', '4', '6', '8'],
+        correctAnswer: '2',
+        explanation: 'A /30 network has 4 addresses, but 2 are reserved (network and broadcast)'
+      },
+      {
+        id: 9,
+        question: 'What is the subnet mask for /28?',
+        options: ['255.255.255.240', '255.255.255.248', '255.255.255.252', '255.255.255.255'],
+        correctAnswer: '255.255.255.240',
+        explanation: 'A /28 subnet mask has 28 bits set to 1, which is 255.255.255.240'
+      },
+      {
+        id: 10,
+        question: 'How many subnets can be created with a /28 mask?',
+        options: ['8', '16', '32', '64'],
+        correctAnswer: '16',
+        explanation: 'A /28 mask uses 4 bits for subnetting, creating 16 subnets'
       }
     ]
   },
@@ -66,6 +125,62 @@ const quizzes: { [key: string]: Quiz } = {
         options: ['RIP', 'OSPF', 'BGP', 'EIGRP'],
         correctAnswer: 'OSPF',
         explanation: 'OSPF uses the Dijkstra algorithm to calculate the shortest path'
+      },
+      {
+        id: 3,
+        question: 'What is the maximum hop count in RIP?',
+        options: ['15', '16', '30', '255'],
+        correctAnswer: '15',
+        explanation: 'RIP has a maximum hop count of 15, with 16 being considered unreachable'
+      },
+      {
+        id: 4,
+        question: 'Which routing protocol is link-state?',
+        options: ['RIP', 'OSPF', 'BGP', 'EIGRP'],
+        correctAnswer: 'OSPF',
+        explanation: 'OSPF is a link-state routing protocol that maintains a complete topology database'
+      },
+      {
+        id: 5,
+        question: 'What is the administrative distance of OSPF?',
+        options: ['90', '100', '110', '120'],
+        correctAnswer: '110',
+        explanation: 'OSPF has an administrative distance of 110'
+      },
+      {
+        id: 6,
+        question: 'Which protocol uses the Bellman-Ford algorithm?',
+        options: ['RIP', 'OSPF', 'BGP', 'EIGRP'],
+        correctAnswer: 'RIP',
+        explanation: 'RIP uses the Bellman-Ford algorithm for path calculation'
+      },
+      {
+        id: 7,
+        question: 'What is the default update interval for RIP?',
+        options: ['15 seconds', '30 seconds', '60 seconds', '90 seconds'],
+        correctAnswer: '30 seconds',
+        explanation: 'RIP sends updates every 30 seconds by default'
+      },
+      {
+        id: 8,
+        question: 'Which routing protocol is path-vector?',
+        options: ['RIP', 'OSPF', 'BGP', 'EIGRP'],
+        correctAnswer: 'BGP',
+        explanation: 'BGP is a path-vector protocol that makes routing decisions based on paths'
+      },
+      {
+        id: 9,
+        question: 'What is the administrative distance of EIGRP?',
+        options: ['90', '100', '110', '120'],
+        correctAnswer: '90',
+        explanation: 'EIGRP has an administrative distance of 90'
+      },
+      {
+        id: 10,
+        question: 'Which protocol uses the DUAL algorithm?',
+        options: ['RIP', 'OSPF', 'BGP', 'EIGRP'],
+        correctAnswer: 'EIGRP',
+        explanation: 'EIGRP uses the DUAL (Diffusing Update Algorithm) for path calculation'
       }
     ]
   },
@@ -92,6 +207,102 @@ const quizzes: { [key: string]: Quiz } = {
         ],
         correctAnswer: 'To monitor and control network traffic',
         explanation: 'A firewall monitors and controls incoming and outgoing network traffic based on predetermined security rules'
+      },
+      {
+        id: 3,
+        question: 'What is a VPN used for?',
+        options: [
+          'To increase network speed',
+          'To create a secure connection over the internet',
+          'To store data',
+          'To connect to a printer'
+        ],
+        correctAnswer: 'To create a secure connection over the internet',
+        explanation: 'A VPN creates an encrypted tunnel for secure communication over the internet'
+      },
+      {
+        id: 4,
+        question: 'What is the purpose of SSL/TLS?',
+        options: [
+          'To speed up websites',
+          'To encrypt data in transit',
+          'To store passwords',
+          'To compress files'
+        ],
+        correctAnswer: 'To encrypt data in transit',
+        explanation: 'SSL/TLS provides encryption for data being transmitted over the network'
+      },
+      {
+        id: 5,
+        question: 'What is a DDoS attack?',
+        options: [
+          'A virus that spreads through email',
+          'A distributed denial of service attack',
+          'A type of firewall',
+          'A network protocol'
+        ],
+        correctAnswer: 'A distributed denial of service attack',
+        explanation: 'A DDoS attack floods a target with traffic from multiple sources'
+      },
+      {
+        id: 6,
+        question: 'What is the purpose of IDS?',
+        options: [
+          'To block all traffic',
+          'To detect suspicious activity',
+          'To speed up the network',
+          'To store data'
+        ],
+        correctAnswer: 'To detect suspicious activity',
+        explanation: 'An Intrusion Detection System monitors network traffic for suspicious activity'
+      },
+      {
+        id: 7,
+        question: 'What is two-factor authentication?',
+        options: [
+          'Using two passwords',
+          'Using two usernames',
+          'Using two different authentication methods',
+          'Using two computers'
+        ],
+        correctAnswer: 'Using two different authentication methods',
+        explanation: 'Two-factor authentication requires two different methods to verify identity'
+      },
+      {
+        id: 8,
+        question: 'What is a man-in-the-middle attack?',
+        options: [
+          'An attack that blocks all traffic',
+          'An attack that intercepts communication',
+          'An attack that deletes data',
+          'An attack that speeds up the network'
+        ],
+        correctAnswer: 'An attack that intercepts communication',
+        explanation: 'A man-in-the-middle attack intercepts and potentially alters communication between two parties'
+      },
+      {
+        id: 9,
+        question: 'What is the purpose of a DMZ?',
+        options: [
+          'To speed up the network',
+          'To store sensitive data',
+          'To provide a buffer zone between trusted and untrusted networks',
+          'To connect to the internet'
+        ],
+        correctAnswer: 'To provide a buffer zone between trusted and untrusted networks',
+        explanation: 'A DMZ (Demilitarized Zone) provides a buffer between internal and external networks'
+      },
+      {
+        id: 10,
+        question: 'What is the purpose of a honeypot?',
+        options: [
+          'To store honey',
+          'To attract and monitor attackers',
+          'To speed up the network',
+          'To block all traffic'
+        ],
+        correctAnswer: 'To attract and monitor attackers',
+        explanation: 'A honeypot is a decoy system designed to attract and monitor attackers'
       }
     ]
   }
@@ -105,6 +316,9 @@ export default function QuizScreen() {
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [quizCompleted, setQuizCompleted] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [quizHistory, setQuizHistory] = useState<QuizHistory[]>([]);
+  const [startTime, setStartTime] = useState<number>(0);
 
   const quiz = quizzes[id as string];
   const question = quiz?.questions[currentQuestion];
@@ -127,6 +341,24 @@ export default function QuizScreen() {
     }
   }, [currentQuestion]);
 
+  useEffect(() => {
+    setStartTime(Date.now());
+  }, []);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const savedHistory = localStorage.getItem('quizHistory');
+        if (savedHistory) {
+          setQuizHistory(JSON.parse(savedHistory));
+        }
+      } catch (error) {
+        console.error('Error loading quiz history:', error);
+      }
+    };
+    loadHistory();
+  }, []);
+
   const handleAnswer = (answer: string) => {
     setSelectedAnswer(answer);
     if (answer === question?.correctAnswer) {
@@ -135,13 +367,38 @@ export default function QuizScreen() {
     setShowExplanation(true);
   };
 
+  const handleQuizComplete = () => {
+    const timeTaken = Math.floor((Date.now() - startTime) / 1000); // in seconds
+    const newHistory: QuizHistory = {
+      id: Date.now().toString(),
+      quizId: id as string,
+      quizTitle: quiz.title,
+      score,
+      totalQuestions: quiz.questions.length,
+      date: new Date().toISOString(),
+      timeTaken
+    };
+
+    const updatedHistory = [newHistory, ...quizHistory];
+    setQuizHistory(updatedHistory);
+    
+    // Save to localStorage
+    try {
+      localStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
+    } catch (error) {
+      console.error('Error saving quiz history:', error);
+    }
+
+    setQuizCompleted(true);
+  };
+
   const handleNextQuestion = () => {
     if (currentQuestion < (quiz?.questions.length || 0) - 1) {
       setCurrentQuestion(currentQuestion + 1);
       setSelectedAnswer(null);
       setShowExplanation(false);
     } else {
-      setQuizCompleted(true);
+      handleQuizComplete();
     }
   };
 
@@ -161,6 +418,43 @@ export default function QuizScreen() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+  };
+
+  const formatTimeTaken = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  };
+
+  const renderHistory = () => (
+    <Modal visible={showHistory} animationType="slide" transparent={true}>
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Quiz History</Text>
+          <ScrollView style={styles.historyScroll}>
+            {quizHistory
+              .filter(history => history.quizId === id)
+              .map(history => (
+                <View key={history.id} style={styles.historyItem}>
+                  <Text style={styles.historyDate}>{formatDate(history.date)}</Text>
+                  <Text style={styles.historyScore}>
+                    Score: {history.score}/{history.totalQuestions} ({((history.score / history.totalQuestions) * 100).toFixed(1)}%)
+                  </Text>
+                  <Text style={styles.historyTime}>Time: {formatTimeTaken(history.timeTaken)}</Text>
+                </View>
+              ))}
+          </ScrollView>
+          <TouchableOpacity style={styles.closeButton} onPress={() => setShowHistory(false)}>
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
 
   if (!quiz) {
     return (
@@ -196,6 +490,9 @@ export default function QuizScreen() {
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>{quiz.title}</Text>
+          <TouchableOpacity style={styles.historyButton} onPress={() => setShowHistory(true)}>
+            <Text style={styles.historyButtonText}>History</Text>
+          </TouchableOpacity>
           <Text style={styles.progress}>
             Question {currentQuestion + 1} of {quiz.questions.length}
           </Text>
@@ -241,6 +538,7 @@ export default function QuizScreen() {
           )}
         </View>
       </ScrollView>
+      {renderHistory()}
     </SafeAreaView>
   );
 }
@@ -378,6 +676,73 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#333',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 20,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  historyScroll: {
+    maxHeight: 400,
+  },
+  historyItem: {
+    backgroundColor: '#f5f5f5',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  historyDate: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 5,
+  },
+  historyScore: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 5,
+  },
+  historyTime: {
+    fontSize: 14,
+    color: '#666',
+  },
+  historyButton: {
+    backgroundColor: '#007AFF',
+    padding: 8,
+    borderRadius: 5,
+    marginBottom: 10,
+  },
+  historyButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  closeButton: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
 }); 

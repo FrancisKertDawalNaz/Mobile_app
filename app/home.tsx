@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Modal } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 
@@ -20,6 +20,9 @@ interface Quiz {
 }
 
 export default function HomeScreen() {
+  const [showProfile, setShowProfile] = useState(false);
+  const [points, setPoints] = useState(100); // Example points value
+
   const tutorials: Tutorial[] = [
     {
       id: '1',
@@ -63,14 +66,14 @@ export default function HomeScreen() {
       id: '2',
       title: 'Routing Basics',
       description: 'Basic routing concepts and protocols',
-      questionCount: 8,
+      questionCount: 10,
       difficulty: 'easy'
     },
     {
       id: '3',
       title: 'Network Security',
       description: 'Security protocols and best practices',
-      questionCount: 12,
+      questionCount: 10,
       difficulty: 'hard'
     }
   ];
@@ -101,13 +104,21 @@ export default function HomeScreen() {
     }
   };
 
+  const handleLogout = () => {
+    // Add logout logic here
+    console.log('Logout pressed');
+    setShowProfile(false);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="auto" />
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Network Learning Simulator</Text>
-          <Text style={styles.subtitle}>Master networking concepts through interactive learning</Text>
+          <TouchableOpacity onPress={() => setShowProfile(true)} style={styles.profileIcon}>
+            <Text style={styles.profileIconText}>👤</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -170,6 +181,17 @@ export default function HomeScreen() {
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
+      <Modal visible={showProfile} transparent={true} animationType="slide">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>User Profile</Text>
+            <Text style={styles.pointsText}>Points: {points}</Text>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowProfile(false)}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -183,20 +205,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    marginTop: 40,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 10,
+    marginRight: 20,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
+  profileIcon: {
+    padding: 10,
+    marginLeft: -40,
+  },
+  profileIconText: {
+    fontSize: 24,
   },
   section: {
     padding: 20,
@@ -321,6 +348,40 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     color: '#fff',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 20,
+    width: '80%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  pointsText: {
+    fontSize: 18,
+    marginBottom: 20,
+  },
+  closeButton: {
+    backgroundColor: '#007AFF',
+    padding: 10,
+    borderRadius: 5,
+    width: '100%',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
 }); 
