@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Modal } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Tutorial {
   id: string;
@@ -19,9 +20,20 @@ interface Quiz {
   difficulty: 'easy' | 'medium' | 'hard';
 }
 
+interface QuizHistory {
+  id: string;
+  quizId: string;
+  quizTitle: string;
+  score: number;
+  totalQuestions: number;
+  date: string;
+  timeTaken: number;
+}
+
 export default function HomeScreen() {
   const [showProfile, setShowProfile] = useState(false);
-  const [points, setPoints] = useState(100); // Example points value
+  const [points, setPoints] = useState(100);
+  const [quizHistory, setQuizHistory] = useState<QuizHistory[]>([]);
 
   const tutorials: Tutorial[] = [
     {
@@ -78,6 +90,48 @@ export default function HomeScreen() {
     }
   ];
 
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const savedHistory = await AsyncStorage.getItem('quizHistory');
+        if (savedHistory) {
+          setQuizHistory(JSON.parse(savedHistory));
+        }
+      } catch (error) {
+        console.error('Error loading quiz history:', error);
+      }
+    };
+    loadHistory();
+  }, []);
+
+  const calculateAverageScore = () => {
+    if (quizHistory.length === 0) return 0;
+    const totalScore = quizHistory.reduce((sum, quiz) => {
+      return sum + (quiz.score / quiz.totalQuestions) * 100;
+    }, 0);
+    return (totalScore / quizHistory.length).toFixed(1);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  };
+
+  const getQuizPerformance = (quizId: string) => {
+    const quizAttempts = quizHistory.filter(quiz => quiz.quizId === quizId);
+    if (quizAttempts.length === 0) return null;
+
+    const bestScore = Math.max(...quizAttempts.map(quiz => (quiz.score / quiz.totalQuestions) * 100));
+    const attempts = quizAttempts.length;
+    const averageScore = quizAttempts.reduce((sum, quiz) => sum + (quiz.score / quiz.totalQuestions) * 100, 0) / attempts;
+
+    return {
+      bestScore: bestScore.toFixed(1),
+      attempts,
+      averageScore: averageScore.toFixed(1)
+    };
+  };
+
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case 'easy':
@@ -108,6 +162,16 @@ export default function HomeScreen() {
     // Add logout logic here
     console.log('Logout pressed');
     setShowProfile(false);
+  };
+
+  const handleQuizComplete = async (newHistory: QuizHistory) => {
+    try {
+      const updatedHistory = [newHistory, ...quizHistory];
+      setQuizHistory(updatedHistory);
+      await AsyncStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
+    } catch (error) {
+      console.error('Error saving quiz history:', error);
+    }
   };
 
   return (
@@ -181,12 +245,80 @@ export default function HomeScreen() {
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
-      <Modal visible={showProfile} transparent={true} animationType="slide">
+      <Modal
+        visible={showProfile}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowProfile(false)}
+      >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>User Profile</Text>
-            <Text style={styles.pointsText}>Points: {points}</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowProfile(false)}>
+            
+            <View style={styles.statsContainer}>
+              <Text style={styles.statsTitle}>Overall Performance</Text>
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{calculateAverageScore()}%</Text>
+                  <Text style={styles.statLabel}>Average Score</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{quizHistory.length}</Text>
+                  <Text style={styles.statLabel}>Total Attempts</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{points}</Text>
+                  <Text style={styles.statLabel}>Points</Text>
+                </View>
+              </View>
+              
+              <View style={styles.recentHistoryContainer}>
+                <Text style={styles.recentHistoryTitle}>Recent Quiz History</Text>
+                <ScrollView style={styles.recentHistoryScroll}>
+                  {quizHistory.slice(0, 5).map((history) => (
+                    <View key={history.id} style={styles.recentHistoryItem}>
+                      <View style={styles.recentHistoryHeader}>
+                        <Text style={styles.recentHistoryQuiz}>{history.quizTitle}</Text>
+                        <Text style={styles.recentHistoryDate}>{formatDate(history.date)}</Text>
+                      </View>
+                      <View style={styles.recentHistoryStats}>
+                        <Text style={styles.recentHistoryScore}>
+                          Score: {history.score}/{history.totalQuestions} ({((history.score / history.totalQuestions) * 100).toFixed(1)}%)
+                        </Text>
+                        <Text style={styles.recentHistoryTime}>
+                          Time: {Math.floor(history.timeTaken / 60)}m {history.timeTaken % 60}s
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+
+            <ScrollView style={styles.quizHistoryContainer}>
+              <Text style={styles.historyTitle}>Quiz Performance</Text>
+              {['1', '2', '3'].map(quizId => {
+                const performance = getQuizPerformance(quizId);
+                if (!performance) return null;
+
+                const quizTitle = quizHistory.find(q => q.quizId === quizId)?.quizTitle || 'Unknown Quiz';
+                return (
+                  <View key={quizId} style={styles.quizHistoryItem}>
+                    <Text style={styles.quizTitle}>{quizTitle}</Text>
+                    <View style={styles.quizStats}>
+                      <Text style={styles.quizStat}>Best Score: {performance.bestScore}%</Text>
+                      <Text style={styles.quizStat}>Attempts: {performance.attempts}</Text>
+                      <Text style={styles.quizStat}>Average: {performance.averageScore}%</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowProfile(false)}
+            >
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -360,28 +492,128 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 20,
-    width: '80%',
-    alignItems: 'center',
+    width: '90%',
+    maxHeight: '80%',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  statsContainer: {
+    backgroundColor: '#f5f5f5',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  statsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#007AFF',
+    marginBottom: 5,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  quizHistoryContainer: {
+    maxHeight: 300,
+  },
+  historyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 15,
+  },
+  quizHistoryItem: {
+    backgroundColor: '#f5f5f5',
+    padding: 15,
+    borderRadius: 10,
     marginBottom: 10,
   },
-  pointsText: {
-    fontSize: 18,
-    marginBottom: 20,
+  quizStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  quizStat: {
+    fontSize: 14,
+    color: '#666',
   },
   closeButton: {
     backgroundColor: '#007AFF',
-    padding: 10,
-    borderRadius: 5,
-    width: '100%',
+    padding: 15,
+    borderRadius: 10,
     alignItems: 'center',
+    marginTop: 20,
   },
   closeButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  recentHistoryContainer: {
+    marginTop: 20,
+  },
+  recentHistoryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  recentHistoryScroll: {
+    maxHeight: 200,
+  },
+  recentHistoryItem: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  recentHistoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  recentHistoryQuiz: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  recentHistoryDate: {
+    fontSize: 12,
+    color: '#666',
+  },
+  recentHistoryStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  recentHistoryScore: {
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  recentHistoryTime: {
+    fontSize: 12,
+    color: '#666',
   },
 }); 

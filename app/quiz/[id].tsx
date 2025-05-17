@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ScrollView, Alert, Modal } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface QuizQuestion {
   id: number;
@@ -348,7 +349,7 @@ export default function QuizScreen() {
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const savedHistory = localStorage.getItem('quizHistory');
+        const savedHistory = await AsyncStorage.getItem('quizHistory');
         if (savedHistory) {
           setQuizHistory(JSON.parse(savedHistory));
         }
@@ -367,7 +368,7 @@ export default function QuizScreen() {
     setShowExplanation(true);
   };
 
-  const handleQuizComplete = () => {
+  const handleQuizComplete = async () => {
     const timeTaken = Math.floor((Date.now() - startTime) / 1000); // in seconds
     const newHistory: QuizHistory = {
       id: Date.now().toString(),
@@ -379,12 +380,10 @@ export default function QuizScreen() {
       timeTaken
     };
 
-    const updatedHistory = [newHistory, ...quizHistory];
-    setQuizHistory(updatedHistory);
-    
-    // Save to localStorage
     try {
-      localStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
+      const updatedHistory = [newHistory, ...quizHistory];
+      setQuizHistory(updatedHistory);
+      await AsyncStorage.setItem('quizHistory', JSON.stringify(updatedHistory));
     } catch (error) {
       console.error('Error saving quiz history:', error);
     }
